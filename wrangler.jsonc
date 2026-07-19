@@ -14,7 +14,7 @@
     {
       "binding": "DB",
       "database_name": "handoff",
-      "database_id": "replace-with-your-d1-database-id",
+      "database_id": "e5c907fd-4029-4c75-9f2e-4dc28093a6c1",
       "migrations_dir": "migrations"
     }
   ],
