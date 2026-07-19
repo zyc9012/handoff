@@ -1,0 +1,31 @@
+{
+  "name": "handoff",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "concurrently -k -n ui,worker -c cyan,green \"vite build --watch\" \"wrangler dev\"",
+    "check": "tsc --noEmit && vite build && wrangler deploy --dry-run",
+    "db:migrate:local": "wrangler d1 migrations apply handoff --local",
+    "db:migrate:remote": "wrangler d1 migrations apply handoff --remote",
+    "deploy": "npm run build && wrangler deploy",
+    "types": "wrangler types",
+    "tail": "wrangler tail"
+  },
+  "dependencies": {
+    "@preact/signals": "^2.3.2",
+    "lucide-preact": "^1.24.0",
+    "preact": "^10.28.2"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.12.14",
+    "@preact/preset-vite": "^2.10.2",
+    "@types/node": "^24.13.2",
+    "concurrently": "^10.0.3",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1",
+    "vitest": "^3.2.4",
+    "wrangler": "^4.0.0"
+  }
+}
