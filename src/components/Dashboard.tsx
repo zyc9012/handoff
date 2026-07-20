@@ -18,7 +18,6 @@ export function Dashboard({ user, onLogout, onNearby }: DashboardProps) {
   const [adminOpen, setAdminOpen] = useState(false)
   const [error, setError] = useState('')
   const [loadingTabs, setLoadingTabs] = useState(true)
-  const [loadingDetail, setLoadingDetail] = useState(false)
   const [creatingTab, setCreatingTab] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
 
@@ -27,7 +26,11 @@ export function Dashboard({ user, onLogout, onNearby }: DashboardProps) {
     try {
       const result = await api.tabs()
       setTabs(result.tabs)
-      if (!activeId && result.tabs[0]) setActiveId(result.tabs[0].id)
+      setActiveId((current) =>
+        current && result.tabs.some((tab) => tab.id === current)
+          ? current
+          : result.tabs[0]?.id ?? null,
+      )
     } finally {
       setLoadingTabs(false)
     }
@@ -36,17 +39,11 @@ export function Dashboard({ user, onLogout, onNearby }: DashboardProps) {
   const loadDetail = async () => {
     if (!activeId) {
       setDetail(null)
-      setLoadingDetail(false)
       return
     }
 
-    setLoadingDetail(true)
     if (detail?.tab.id !== activeId) setDetail(null)
-    try {
-      setDetail(await api.tab(activeId))
-    } finally {
-      setLoadingDetail(false)
-    }
+    setDetail(await api.tab(activeId))
   }
 
   useEffect(() => {
@@ -176,7 +173,7 @@ export function Dashboard({ user, onLogout, onNearby }: DashboardProps) {
 
       <div className="workspace">
         <ErrorLine error={error} />
-        {(loadingDetail && detail?.tab.id !== activeId) || (loadingTabs && !tabs.length) ? (
+        {(activeId !== null && detail?.tab.id !== activeId) || (loadingTabs && !tabs.length) ? (
           <section className="workspace-loading" role="status">
             <LoaderCircle className="loading-spinner" size={24} />
             <span>Loading workspace</span>
