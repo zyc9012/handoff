@@ -1,4 +1,4 @@
-import { ChevronDown, FilePlus2, LoaderCircle, Plus, Save, Trash2, Upload } from 'lucide-preact'
+import { ChevronDown, FilePlus2, LoaderCircle, Plus, Trash2, Upload } from 'lucide-preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { api, type TabDetail } from '../api'
 import { ErrorLine } from './ErrorLine'
@@ -16,10 +16,17 @@ function expiryFromChoice(choice: string): string | null {
   return new Date(Date.now() + Number(choice) * 60 * 60 * 1000).toISOString()
 }
 
+interface TabDraft {
+  tabId: string
+  title: string
+  expiry: string
+  revision: number
+}
+
 export function TabWorkspace({ detail, onChanged, onDeleted }: TabWorkspaceProps) {
   const [title, setTitle] = useState(detail.tab.title)
   const [expiry, setExpiry] = useState(detail.tab.expiresAt ? '24' : 'never')
-  const [savingTab, setSavingTab] = useState(false)
+  const [tabDirty, setTabDirty] = useState(false)
   const [addingSnippet, setAddingSnippet] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [deletingTab, setDeletingTab] = useState(false)
@@ -27,25 +34,115 @@ export function TabWorkspace({ detail, onChanged, onDeleted }: TabWorkspaceProps
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const fileInput = useRef<HTMLInputElement>(null)
+  const currentTabId = useRef(detail.tab.id)
+  const revision = useRef(0)
+  const dirty = useRef(false)
+  const saving = useRef(false)
+  const pendingDraft = useRef<TabDraft | null>(null)
+  const latestDraft = useRef<TabDraft>({
+    tabId: detail.tab.id,
+    title: detail.tab.title,
+    expiry: detail.tab.expiresAt ? '24' : 'never',
+    revision: 0,
+  })
+
+  const persistPendingDrafts = async () => {
+    if (saving.current) return
+
+    saving.current = true
+    while (pendingDraft.current) {
+      const draft = pendingDraft.current
+      pendingDraft.current = null
+      setError('')
+      try {
+        await api.updateTab(draft.tabId, {
+          title: draft.title,
+          expiresAt: expiryFromChoice(draft.expiry),
+        })
+      } catch (caught) {
+        if (currentTabId.current === draft.tabId) {
+          setError(caught instanceof Error ? caught.message : 'Could not save tab')
+        }
+        pendingDraft.current = null
+        break
+      }
+
+      if (
+        currentTabId.current === draft.tabId &&
+        revision.current === draft.revision &&
+        !pendingDraft.current
+      ) {
+        dirty.current = false
+        setTabDirty(false)
+        await onChanged()
+      }
+    }
+
+    saving.current = false
+  }
+
+  const queueTabSave = (draft: TabDraft) => {
+    pendingDraft.current = draft
+    void persistPendingDrafts()
+  }
 
   useEffect(() => {
-    setTitle(detail.tab.title)
-    setExpiry(detail.tab.expiresAt ? '24' : 'never')
+    const nextExpiry = detail.tab.expiresAt ? '24' : 'never'
+    if (currentTabId.current !== detail.tab.id) {
+      if (dirty.current) queueTabSave(latestDraft.current)
+      currentTabId.current = detail.tab.id
+      revision.current += 1
+      dirty.current = false
+      setTabDirty(false)
+      setTitle(detail.tab.title)
+      setExpiry(nextExpiry)
+      latestDraft.current = {
+        tabId: detail.tab.id,
+        title: detail.tab.title,
+        expiry: nextExpiry,
+        revision: revision.current,
+      }
+    } else if (!dirty.current) {
+      setTitle(detail.tab.title)
+      setExpiry(nextExpiry)
+      latestDraft.current = {
+        tabId: detail.tab.id,
+        title: detail.tab.title,
+        expiry: nextExpiry,
+        revision: revision.current,
+      }
+    }
   }, [detail.tab.id, detail.tab.title, detail.tab.expiresAt])
 
-  const saveTab = async () => {
-    setSavingTab(true)
-    setError('')
-    try {
-      await api.updateTab(detail.tab.id, {
-        title,
-        expiresAt: expiryFromChoice(expiry),
-      })
-      await onChanged()
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not save tab')
-    } finally {
-      setSavingTab(false)
+  useEffect(() => {
+    if (!tabDirty) return
+    const timeout = window.setTimeout(() => queueTabSave(latestDraft.current), 600)
+    return () => window.clearTimeout(timeout)
+  }, [title, expiry, tabDirty])
+
+  const changeTitle = (value: string) => {
+    revision.current += 1
+    dirty.current = true
+    setTabDirty(true)
+    setTitle(value)
+    latestDraft.current = {
+      tabId: currentTabId.current,
+      title: value,
+      expiry,
+      revision: revision.current,
+    }
+  }
+
+  const changeExpiry = (value: string) => {
+    revision.current += 1
+    dirty.current = true
+    setTabDirty(true)
+    setExpiry(value)
+    latestDraft.current = {
+      tabId: currentTabId.current,
+      title,
+      expiry: value,
+      revision: revision.current,
     }
   }
 
@@ -129,7 +226,7 @@ export function TabWorkspace({ detail, onChanged, onDeleted }: TabWorkspaceProps
           <input
             className="tab-title"
             value={title}
-            onInput={(event) => setTitle(event.currentTarget.value)}
+            onInput={(event) => changeTitle(event.currentTarget.value)}
             maxLength={120}
           />
         </div>
@@ -137,7 +234,7 @@ export function TabWorkspace({ detail, onChanged, onDeleted }: TabWorkspaceProps
           <span className="expiration-select">
             <select
               value={expiry}
-              onChange={(event) => setExpiry(event.currentTarget.value)}
+              onChange={(event) => changeExpiry(event.currentTarget.value)}
               aria-label="Expiration"
             >
               <option value="never">No expiration</option>
@@ -148,15 +245,6 @@ export function TabWorkspace({ detail, onChanged, onDeleted }: TabWorkspaceProps
             </select>
             <ChevronDown size={15} aria-hidden="true" />
           </span>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={savingTab}
-            onClick={() => void saveTab()}
-          >
-            {savingTab ? <LoaderCircle className="loading-spinner" size={16} /> : <Save size={16} />}
-            {savingTab ? 'Saving...' : 'Save'}
-          </button>
           <button
             className="icon-button danger-icon"
             type="button"
@@ -197,6 +285,7 @@ export function TabWorkspace({ detail, onChanged, onDeleted }: TabWorkspaceProps
               snippet={snippet}
               deleting={deletingSnippetId === snippet.id}
               onSaved={onChanged}
+              onError={setError}
               onDelete={() => {
                 if (confirm('Delete this snippet?')) {
                   void deleteSnippet(snippet.id)
