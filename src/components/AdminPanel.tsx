@@ -1,4 +1,4 @@
-import { LoaderCircle, Trash2, UserPlus, X } from 'lucide-preact'
+import { ChevronDown, LoaderCircle, Trash2, UserPlus, X } from 'lucide-preact'
 import { useEffect, useState } from 'preact/hooks'
 import { api, type User } from '../api'
 import { ErrorLine } from './ErrorLine'
@@ -116,16 +116,20 @@ export function AdminPanel({ currentUser, onClose }: AdminPanelProps) {
             required
             minLength={10}
           />
-          <select
-            value={form.role}
-            disabled={creatingUser}
-            onChange={(event) =>
-              setForm({ ...form, role: event.currentTarget.value as 'admin' | 'user' })
-            }
-          >
-            <option value="user">User</option>
-            <option value="admin">Admin</option>
-          </select>
+          <span className="role-select">
+            <select
+              value={form.role}
+              disabled={creatingUser}
+              aria-label="Role"
+              onChange={(event) =>
+                setForm({ ...form, role: event.currentTarget.value as 'admin' | 'user' })
+              }
+            >
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+            <ChevronDown size={15} aria-hidden="true" />
+          </span>
           <button className="primary-button" disabled={creatingUser}>
             {creatingUser ? <LoaderCircle className="loading-spinner" size={16} /> : <UserPlus size={16} />}
             {creatingUser ? 'Creating...' : 'Create user'}
