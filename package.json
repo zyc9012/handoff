@@ -10,6 +10,7 @@
     "db:migrate:local": "wrangler d1 migrations apply handoff --local",
     "db:migrate:remote": "wrangler d1 migrations apply handoff --remote",
     "deploy": "npm run build && wrangler deploy",
+    "test": "vitest run",
     "types": "wrangler types",
     "tail": "wrangler tail"
   },
