@@ -9,6 +9,7 @@ import {
   X,
 } from 'lucide-preact'
 import { useRef, useState } from 'preact/hooks'
+import { MAX_ROOM_CODE_LENGTH } from '../utils'
 import { useNearbyTransfer, type NearbyPeer } from '../useNearbyTransfer'
 
 interface NearbyDropProps {
@@ -120,8 +121,8 @@ export function NearbyDrop({ onBack }: NearbyDropProps) {
               <input
                 value={nearby.roomCode}
                 onInput={(event) => nearby.setRoomCode(event.currentTarget.value)}
-                placeholder="A1B2C3"
-                maxLength={6}
+                placeholder="ROOM123"
+                maxLength={MAX_ROOM_CODE_LENGTH}
               />
             </label>
           </div>

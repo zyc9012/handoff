@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
+import { normalizeRoomCode, roomCodeFromPath } from './utils'
 
 export interface NearbyPeer {
   id: string
@@ -65,7 +66,7 @@ export function useNearbyTransfer() {
   const [name, setNameState] = useState(
     () => localStorage.getItem('handoff:device-name') ?? randomName(),
   )
-  const [roomCode, setRoomCodeState] = useState('')
+  const [roomCode, setRoomCodeState] = useState(() => roomCodeFromPath(location.pathname))
   const [connection, setConnection] = useState<'connecting' | 'connected' | 'offline'>('connecting')
   const [peers, setPeers] = useState<NearbyPeer[]>([])
   const [outgoing, setOutgoing] = useState<Outgoing | null>(null)
@@ -206,7 +207,7 @@ export function useNearbyTransfer() {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
     const query = new URLSearchParams({
       name,
-      ...(roomCode.length === 6 ? { room: roomCode } : {}),
+      ...(roomCode ? { room: roomCode } : {}),
     })
     const socket = new WebSocket(`${protocol}//${location.host}/drop/ws?${query}`)
     socketRef.current = socket
@@ -289,7 +290,9 @@ export function useNearbyTransfer() {
   }
 
   const setRoomCode = (value: string) => {
-    setRoomCodeState(value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))
+    const next = normalizeRoomCode(value)
+    history.replaceState(null, '', next ? `/drop/${next}` : '/drop')
+    setRoomCodeState(next)
   }
 
   const acceptTransfer = async () => {

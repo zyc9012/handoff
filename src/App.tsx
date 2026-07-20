@@ -3,10 +3,11 @@ import { api, type SessionState } from './api'
 import { AuthScreen } from './components/AuthScreen'
 import { Dashboard } from './components/Dashboard'
 import { NearbyDrop } from './components/NearbyDrop'
+import { isNearbyPath } from './utils'
 
 export default function App() {
   const [session, setSession] = useState<SessionState | null>(null)
-  const [nearby, setNearby] = useState(location.pathname === '/drop')
+  const [nearby, setNearby] = useState(isNearbyPath(location.pathname))
 
   useEffect(() => {
     void api

@@ -1,4 +1,5 @@
 export { DropRoom } from "./drop-room";
+import { normalizeRoomCode } from "../src/utils";
 import { clearExpired, handleApi } from "./api";
 
 export default {
@@ -6,9 +7,9 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/api/health") return Response.json({ status: "ok" });
     if (url.pathname === "/drop/ws") {
-      const code = url.searchParams.get("room")?.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+      const code = normalizeRoomCode(url.searchParams.get("room") ?? "");
       const address = request.headers.get("CF-Connecting-IP") ?? "local";
-      const room = code?.length === 6 ? `code:${code}` : `network:${request.cf?.colo ?? "local"}:${address}`;
+      const room = code ? `code:${code}` : `network:${request.cf?.colo ?? "local"}:${address}`;
       return env.DROP_ROOMS.getByName(room).fetch(request);
     }
     if (url.pathname.startsWith("/api/")) return handleApi(request, env);
