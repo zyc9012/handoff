@@ -493,10 +493,12 @@ body { background: var(--canvas); }
 .radar { width: 76px; height: 76px; border: 1px solid #277b6b; border-radius: 50%; display: grid; place-items: center; color: #67d5bd; animation: radar 2.4s ease-out infinite; }
 .transfer-banner { min-height: 72px; margin-top: 18px; padding: 13px; border: 1px solid rgba(255,255,255,.16); display: grid; grid-template-columns: 1fr minmax(120px, 240px) auto; align-items: center; gap: 18px; background: rgba(255,255,255,.06); }
 .transfer-banner > div:first-child { display: grid; gap: 5px; }
-.transfer-banner strong { font-size: 11px; }
+.transfer-banner strong { font-size: 13px; }
 .transfer-banner small { color: #7faaa1; font-family: var(--sans); font-size: 11px; }
 .progress { height: 4px; background: rgba(255,255,255,.14); }
 .progress span { display: block; height: 100%; background: #67d5bd; }
+.transfer-banner .icon-button { color: #b8cbc6; border-color: #277b6b; background: rgba(255,255,255,.05); }
+.transfer-banner .icon-button:hover { color: white; border-color: #67d5bd; background: rgba(103,213,189,.09); }
 .incoming-dialog { width: min(430px, 100%); padding: 28px; color: var(--ink); background: var(--surface-strong); }
 .incoming-dialog h2 { margin-top: 12px; overflow-wrap: anywhere; font-size: 22px; }
 .incoming-dialog > p:not(.eyebrow) { margin-top: 10px; color: var(--muted); font-size: 11px; }
