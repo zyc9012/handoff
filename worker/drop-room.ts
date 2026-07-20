@@ -56,10 +56,11 @@ export class DropRoom extends DurableObject<Env> {
     }
   }
 
-  async webSocketClose(socket: WebSocket, code: number, reason: string): Promise<void> {
+  async webSocketClose(socket: WebSocket): Promise<void> {
     const peer = attachment(socket);
     if (peer) this.broadcast({ type: "peer-left", id: peer.id }, socket);
-    socket.close(code, reason);
+    // Compatibility dates >= 2026-04-07 automatically reply to the close frame.
+    // No need to call socket.close here
   }
 
   async webSocketError(socket: WebSocket): Promise<void> {
