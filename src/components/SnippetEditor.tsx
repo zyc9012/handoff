@@ -1,14 +1,15 @@
-import { Check, Save, Trash2 } from 'lucide-preact'
+import { Check, LoaderCircle, Save, Trash2 } from 'lucide-preact'
 import { useState } from 'preact/hooks'
 import { api, type Snippet } from '../api'
 
 interface SnippetEditorProps {
   snippet: Snippet
-  onSaved: () => void
+  deleting: boolean
+  onSaved: () => Promise<void>
   onDelete: () => void
 }
 
-export function SnippetEditor({ snippet, onSaved, onDelete }: SnippetEditorProps) {
+export function SnippetEditor({ snippet, deleting, onSaved, onDelete }: SnippetEditorProps) {
   const [title, setTitle] = useState(snippet.title)
   const [content, setContent] = useState(snippet.content)
   const [language, setLanguage] = useState(snippet.language)
@@ -20,7 +21,7 @@ export function SnippetEditor({ snippet, onSaved, onDelete }: SnippetEditorProps
     try {
       await api.updateSnippet(snippet.id, { title, content, language })
       setSaved(true)
-      onSaved()
+      await onSaved()
       window.setTimeout(() => setSaved(false), 1200)
     } finally {
       setBusy(false)
@@ -48,15 +49,16 @@ export function SnippetEditor({ snippet, onSaved, onDelete }: SnippetEditorProps
           disabled={busy}
           onClick={() => void save()}
         >
-          {saved ? <Check size={17} /> : <Save size={17} />}
+          {busy ? <LoaderCircle className="loading-spinner" size={17} /> : saved ? <Check size={17} /> : <Save size={17} />}
         </button>
         <button
           className="icon-button danger-icon"
           type="button"
-          title="Delete snippet"
+          title={deleting ? 'Deleting snippet' : 'Delete snippet'}
+          disabled={deleting}
           onClick={onDelete}
         >
-          <Trash2 size={17} />
+          {deleting ? <LoaderCircle className="loading-spinner" size={17} /> : <Trash2 size={17} />}
         </button>
       </div>
       <textarea

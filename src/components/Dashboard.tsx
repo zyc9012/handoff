@@ -1,4 +1,4 @@
-import { Files, HardDrive, LogOut, Plus, Radio, Users } from 'lucide-preact'
+import { Files, HardDrive, LoaderCircle, LogOut, Plus, Radio, Users } from 'lucide-preact'
 import { useEffect, useState } from 'preact/hooks'
 import { api, type TabDetail, type TabSummary, type User } from '../api'
 import { AdminPanel } from './AdminPanel'
@@ -7,7 +7,7 @@ import { TabWorkspace } from './TabWorkspace'
 
 interface DashboardProps {
   user: User
-  onLogout: () => void
+  onLogout: () => Promise<void>
   onNearby: () => void
 }
 
@@ -17,16 +17,36 @@ export function Dashboard({ user, onLogout, onNearby }: DashboardProps) {
   const [detail, setDetail] = useState<TabDetail | null>(null)
   const [adminOpen, setAdminOpen] = useState(false)
   const [error, setError] = useState('')
+  const [loadingTabs, setLoadingTabs] = useState(true)
+  const [loadingDetail, setLoadingDetail] = useState(false)
+  const [creatingTab, setCreatingTab] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
 
   const loadTabs = async () => {
-    const result = await api.tabs()
-    setTabs(result.tabs)
-    if (!activeId && result.tabs[0]) setActiveId(result.tabs[0].id)
+    setLoadingTabs(true)
+    try {
+      const result = await api.tabs()
+      setTabs(result.tabs)
+      if (!activeId && result.tabs[0]) setActiveId(result.tabs[0].id)
+    } finally {
+      setLoadingTabs(false)
+    }
   }
 
   const loadDetail = async () => {
-    if (activeId) setDetail(await api.tab(activeId))
-    else setDetail(null)
+    if (!activeId) {
+      setDetail(null)
+      setLoadingDetail(false)
+      return
+    }
+
+    setLoadingDetail(true)
+    if (detail?.tab.id !== activeId) setDetail(null)
+    try {
+      setDetail(await api.tab(activeId))
+    } finally {
+      setLoadingDetail(false)
+    }
   }
 
   useEffect(() => {
@@ -42,9 +62,17 @@ export function Dashboard({ user, onLogout, onNearby }: DashboardProps) {
   }
 
   const createTab = async () => {
-    const result = await api.createTab({ title: 'Untitled tab', expiresAt: null })
-    await loadTabs()
-    setActiveId(result.tab.id)
+    setCreatingTab(true)
+    setError('')
+    try {
+      const result = await api.createTab({ title: 'Untitled tab', expiresAt: null })
+      await loadTabs()
+      setActiveId(result.tab.id)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not create tab')
+    } finally {
+      setCreatingTab(false)
+    }
   }
 
   const deleteCurrent = async () => {
@@ -53,6 +81,18 @@ export function Dashboard({ user, onLogout, onNearby }: DashboardProps) {
     setActiveId(null)
     setDetail(null)
     await loadTabs()
+  }
+
+  const signOut = async () => {
+    setSigningOut(true)
+    setError('')
+    try {
+      await onLogout()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not sign out')
+    } finally {
+      setSigningOut(false)
+    }
   }
 
   return (
@@ -81,8 +121,14 @@ export function Dashboard({ user, onLogout, onNearby }: DashboardProps) {
               <small>{user.role}</small>
             </div>
           </div>
-          <button className="icon-button" type="button" title="Sign out" onClick={onLogout}>
-            <LogOut size={17} />
+          <button
+            className="icon-button"
+            type="button"
+            title={signingOut ? 'Signing out' : 'Sign out'}
+            disabled={signingOut}
+            onClick={() => void signOut()}
+          >
+            {signingOut ? <LoaderCircle className="loading-spinner" size={17} /> : <LogOut size={17} />}
           </button>
         </div>
       </header>
@@ -94,12 +140,18 @@ export function Dashboard({ user, onLogout, onNearby }: DashboardProps) {
             className="icon-button"
             type="button"
             title="Create tab"
+            disabled={creatingTab}
             onClick={() => void createTab()}
           >
-            <Plus size={17} />
+            {creatingTab ? <LoaderCircle className="loading-spinner" size={17} /> : <Plus size={17} />}
           </button>
         </div>
         <nav>
+          {loadingTabs && !tabs.length && (
+            <span className="sidebar-loading" role="status">
+              <LoaderCircle className="loading-spinner" size={16} /> Loading tabs
+            </span>
+          )}
           {tabs.map((tab) => (
             <button
               className="tab-nav-item"
@@ -124,7 +176,12 @@ export function Dashboard({ user, onLogout, onNearby }: DashboardProps) {
 
       <div className="workspace">
         <ErrorLine error={error} />
-        {detail ? (
+        {(loadingDetail && detail?.tab.id !== activeId) || (loadingTabs && !tabs.length) ? (
+          <section className="workspace-loading" role="status">
+            <LoaderCircle className="loading-spinner" size={24} />
+            <span>Loading workspace</span>
+          </section>
+        ) : detail ? (
           <TabWorkspace
             detail={detail}
             onChanged={refresh}
@@ -138,9 +195,11 @@ export function Dashboard({ user, onLogout, onNearby }: DashboardProps) {
             <button
               className="primary-button"
               type="button"
+              disabled={creatingTab}
               onClick={() => void createTab()}
             >
-              <Plus size={17} /> Create a tab
+              {creatingTab ? <LoaderCircle className="loading-spinner" size={17} /> : <Plus size={17} />}
+              {creatingTab ? 'Creating...' : 'Create a tab'}
             </button>
           </section>
         )}

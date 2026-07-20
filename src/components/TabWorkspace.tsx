@@ -1,4 +1,4 @@
-import { ChevronDown, FilePlus2, Plus, Save, Trash2, Upload } from 'lucide-preact'
+import { ChevronDown, FilePlus2, LoaderCircle, Plus, Save, Trash2, Upload } from 'lucide-preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { api, type TabDetail } from '../api'
 import { ErrorLine } from './ErrorLine'
@@ -19,7 +19,12 @@ function expiryFromChoice(choice: string): string | null {
 export function TabWorkspace({ detail, onChanged, onDeleted }: TabWorkspaceProps) {
   const [title, setTitle] = useState(detail.tab.title)
   const [expiry, setExpiry] = useState(detail.tab.expiresAt ? '24' : 'never')
+  const [savingTab, setSavingTab] = useState(false)
+  const [addingSnippet, setAddingSnippet] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [deletingTab, setDeletingTab] = useState(false)
+  const [deletingSnippetId, setDeletingSnippetId] = useState<string | null>(null)
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const fileInput = useRef<HTMLInputElement>(null)
 
@@ -29,6 +34,7 @@ export function TabWorkspace({ detail, onChanged, onDeleted }: TabWorkspaceProps
   }, [detail.tab.id, detail.tab.title, detail.tab.expiresAt])
 
   const saveTab = async () => {
+    setSavingTab(true)
     setError('')
     try {
       await api.updateTab(detail.tab.id, {
@@ -38,16 +44,63 @@ export function TabWorkspace({ detail, onChanged, onDeleted }: TabWorkspaceProps
       await onChanged()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not save tab')
+    } finally {
+      setSavingTab(false)
     }
   }
 
   const addSnippet = async () => {
-    await api.createSnippet(detail.tab.id, {
-      title: `Snippet ${detail.snippets.length + 1}`,
-      content: '',
-      language: 'text',
-    })
-    await onChanged()
+    setAddingSnippet(true)
+    setError('')
+    try {
+      await api.createSnippet(detail.tab.id, {
+        title: `Snippet ${detail.snippets.length + 1}`,
+        content: '',
+        language: 'text',
+      })
+      await onChanged()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not add snippet')
+    } finally {
+      setAddingSnippet(false)
+    }
+  }
+
+  const deleteTab = async () => {
+    setDeletingTab(true)
+    setError('')
+    try {
+      await onDeleted()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not delete tab')
+      setDeletingTab(false)
+    }
+  }
+
+  const deleteSnippet = async (snippetId: string) => {
+    setDeletingSnippetId(snippetId)
+    setError('')
+    try {
+      await api.deleteSnippet(snippetId)
+      await onChanged()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not delete snippet')
+    } finally {
+      setDeletingSnippetId(null)
+    }
+  }
+
+  const deleteFile = async (fileId: string) => {
+    setDeletingFileId(fileId)
+    setError('')
+    try {
+      await api.deleteFile(fileId)
+      await onChanged()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not delete file')
+    } finally {
+      setDeletingFileId(null)
+    }
   }
 
   const upload = async (files: FileList | null) => {
@@ -98,19 +151,22 @@ export function TabWorkspace({ detail, onChanged, onDeleted }: TabWorkspaceProps
           <button
             className="secondary-button"
             type="button"
+            disabled={savingTab}
             onClick={() => void saveTab()}
           >
-            <Save size={16} /> Save
+            {savingTab ? <LoaderCircle className="loading-spinner" size={16} /> : <Save size={16} />}
+            {savingTab ? 'Saving...' : 'Save'}
           </button>
           <button
             className="icon-button danger-icon"
             type="button"
-            title="Delete tab"
+            title={deletingTab ? 'Deleting tab' : 'Delete tab'}
+            disabled={deletingTab}
             onClick={() => {
-              if (confirm('Delete this tab and all of its content?')) void onDeleted()
+              if (confirm('Delete this tab and all of its content?')) void deleteTab()
             }}
           >
-            <Trash2 size={17} />
+            {deletingTab ? <LoaderCircle className="loading-spinner" size={17} /> : <Trash2 size={17} />}
           </button>
         </div>
       </header>
@@ -125,9 +181,11 @@ export function TabWorkspace({ detail, onChanged, onDeleted }: TabWorkspaceProps
         <button
           className="secondary-button"
           type="button"
+          disabled={addingSnippet}
           onClick={() => void addSnippet()}
         >
-          <Plus size={16} /> Add snippet
+          {addingSnippet ? <LoaderCircle className="loading-spinner" size={16} /> : <Plus size={16} />}
+          {addingSnippet ? 'Adding...' : 'Add snippet'}
         </button>
       </div>
 
@@ -137,10 +195,11 @@ export function TabWorkspace({ detail, onChanged, onDeleted }: TabWorkspaceProps
             <SnippetEditor
               key={snippet.id}
               snippet={snippet}
-              onSaved={() => void onChanged()}
+              deleting={deletingSnippetId === snippet.id}
+              onSaved={onChanged}
               onDelete={() => {
                 if (confirm('Delete this snippet?')) {
-                  void api.deleteSnippet(snippet.id).then(onChanged)
+                  void deleteSnippet(snippet.id)
                 }
               }}
             />
@@ -149,10 +208,11 @@ export function TabWorkspace({ detail, onChanged, onDeleted }: TabWorkspaceProps
           <button
             className="empty-action"
             type="button"
+            disabled={addingSnippet}
             onClick={() => void addSnippet()}
           >
-            <FilePlus2 size={24} />
-            <strong>Add your first snippet</strong>
+            {addingSnippet ? <LoaderCircle className="loading-spinner" size={24} /> : <FilePlus2 size={24} />}
+            <strong>{addingSnippet ? 'Adding snippet...' : 'Add your first snippet'}</strong>
             <span>Your text stays private to your account.</span>
           </button>
         )}
@@ -177,7 +237,8 @@ export function TabWorkspace({ detail, onChanged, onDeleted }: TabWorkspaceProps
             disabled={uploading}
             onClick={() => fileInput.current?.click()}
           >
-            <Upload size={16} /> {uploading ? 'Uploading...' : 'Upload files'}
+            {uploading ? <LoaderCircle className="loading-spinner" size={16} /> : <Upload size={16} />}
+            {uploading ? 'Uploading...' : 'Upload files'}
           </button>
         </>
       </div>
@@ -187,7 +248,9 @@ export function TabWorkspace({ detail, onChanged, onDeleted }: TabWorkspaceProps
           <StoredFileRow
             key={file.id}
             file={file}
-            onDelete={() => void api.deleteFile(file.id).then(onChanged)}
+            deleting={deletingFileId === file.id}
+            onDelete={() => void deleteFile(file.id)}
+            onError={setError}
           />
         ))}
         {!detail.files.length && <p className="empty-copy">No files in this tab.</p>}

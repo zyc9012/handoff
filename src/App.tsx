@@ -48,7 +48,7 @@ export default function App() {
       user={session.user}
       onNearby={enterNearby}
       onLogout={() =>
-        void api
+        api
           .logout()
           .finally(() => setSession({ setupRequired: false, user: null }))
       }

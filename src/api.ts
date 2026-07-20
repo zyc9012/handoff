@@ -59,6 +59,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
+async function requestBlob(path: string): Promise<Blob> {
+  const response = await fetch(path)
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ error: 'Download failed' })) as { error?: string }
+    throw new Error(body.error ?? `Download failed (${response.status})`)
+  }
+  return response.blob()
+}
+
 function jsonInit(method: string, body?: unknown): RequestInit {
   return { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }
 }
@@ -81,6 +90,7 @@ export const api = {
     headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-File-Name': file.name },
     body: file,
   }),
+  downloadFile: (path: string) => requestBlob(path),
   deleteFile: (id: string) => request<void>(`/api/files/${id}`, { method: 'DELETE' }),
   users: () => request<{ users: User[] }>('/api/users'),
   createUser: (body: { username: string; displayName: string; password: string; role: Role }) => request<{ user: User }>('/api/users', jsonInit('POST', body)),

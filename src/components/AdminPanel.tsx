@@ -1,4 +1,4 @@
-import { Trash2, UserPlus, X } from 'lucide-preact'
+import { LoaderCircle, Trash2, UserPlus, X } from 'lucide-preact'
 import { useEffect, useState } from 'preact/hooks'
 import { api, type User } from '../api'
 import { ErrorLine } from './ErrorLine'
@@ -24,12 +24,21 @@ export function AdminPanel({ currentUser, onClose }: AdminPanelProps) {
     role: 'admin' | 'user'
   }>(emptyForm)
   const [error, setError] = useState('')
+  const [loadingUsers, setLoadingUsers] = useState(true)
+  const [creatingUser, setCreatingUser] = useState(false)
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
 
-  const load = () =>
-    api
-      .users()
-      .then((result) => setUsers(result.users))
-      .catch((caught: Error) => setError(caught.message))
+  const load = async () => {
+    setLoadingUsers(true)
+    try {
+      const result = await api.users()
+      setUsers(result.users)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not load users')
+    } finally {
+      setLoadingUsers(false)
+    }
+  }
 
   useEffect(() => {
     void load()
@@ -37,6 +46,7 @@ export function AdminPanel({ currentUser, onClose }: AdminPanelProps) {
 
   const create = async (event: SubmitEvent) => {
     event.preventDefault()
+    setCreatingUser(true)
     setError('')
     try {
       await api.createUser(form)
@@ -44,6 +54,21 @@ export function AdminPanel({ currentUser, onClose }: AdminPanelProps) {
       await load()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not create user')
+    } finally {
+      setCreatingUser(false)
+    }
+  }
+
+  const deleteUser = async (user: User) => {
+    setDeletingUserId(user.id)
+    setError('')
+    try {
+      await api.deleteUser(user.id)
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not delete user')
+    } finally {
+      setDeletingUserId(null)
     }
   }
 
@@ -69,6 +94,7 @@ export function AdminPanel({ currentUser, onClose }: AdminPanelProps) {
           <input
             placeholder="Display name"
             value={form.displayName}
+            disabled={creatingUser}
             onInput={(event) =>
               setForm({ ...form, displayName: event.currentTarget.value })
             }
@@ -77,6 +103,7 @@ export function AdminPanel({ currentUser, onClose }: AdminPanelProps) {
           <input
             placeholder="Username"
             value={form.username}
+            disabled={creatingUser}
             onInput={(event) => setForm({ ...form, username: event.currentTarget.value })}
             required
           />
@@ -84,12 +111,14 @@ export function AdminPanel({ currentUser, onClose }: AdminPanelProps) {
             type="password"
             placeholder="Temporary password (10+ characters)"
             value={form.password}
+            disabled={creatingUser}
             onInput={(event) => setForm({ ...form, password: event.currentTarget.value })}
             required
             minLength={10}
           />
           <select
             value={form.role}
+            disabled={creatingUser}
             onChange={(event) =>
               setForm({ ...form, role: event.currentTarget.value as 'admin' | 'user' })
             }
@@ -97,13 +126,19 @@ export function AdminPanel({ currentUser, onClose }: AdminPanelProps) {
             <option value="user">User</option>
             <option value="admin">Admin</option>
           </select>
-          <button className="primary-button">
-            <UserPlus size={16} /> Create user
+          <button className="primary-button" disabled={creatingUser}>
+            {creatingUser ? <LoaderCircle className="loading-spinner" size={16} /> : <UserPlus size={16} />}
+            {creatingUser ? 'Creating...' : 'Create user'}
           </button>
         </form>
 
         <ErrorLine error={error} />
         <div className="user-list">
+          {loadingUsers && !users.length && (
+            <div className="list-loading" role="status">
+              <LoaderCircle className="loading-spinner" size={17} /> Loading users
+            </div>
+          )}
           {users.map((user) => (
             <div className="user-row" key={user.id}>
               <span className="user-avatar">
@@ -118,14 +153,15 @@ export function AdminPanel({ currentUser, onClose }: AdminPanelProps) {
                 <button
                   className="icon-button danger-icon"
                   type="button"
-                  title="Delete user"
+                  title={deletingUserId === user.id ? 'Deleting user' : 'Delete user'}
+                  disabled={deletingUserId !== null}
                   onClick={() => {
                     if (confirm(`Delete ${user.displayName} and all their tabs?`)) {
-                      void api.deleteUser(user.id).then(load)
+                      void deleteUser(user)
                     }
                   }}
                 >
-                  <Trash2 size={16} />
+                  {deletingUserId === user.id ? <LoaderCircle className="loading-spinner" size={16} /> : <Trash2 size={16} />}
                 </button>
               )}
             </div>
