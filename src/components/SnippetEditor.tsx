@@ -1,5 +1,5 @@
 import { Check, LoaderCircle, Save, Trash2 } from 'lucide-preact'
-import { useEffect, useRef, useState } from 'preact/hooks'
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks'
 import { api, type Snippet } from '../api'
 
 interface SnippetEditorProps {
@@ -25,6 +25,7 @@ export function SnippetEditor({ snippet, deleting, onSaved, onDelete, onError }:
   const revision = useRef(0)
   const saving = useRef(false)
   const pendingDraft = useRef<SnippetDraft | null>(null)
+  const textarea = useRef<HTMLTextAreaElement>(null)
   const latestDraft = useRef<SnippetDraft>({
     title: snippet.title,
     content: snippet.content,
@@ -80,6 +81,12 @@ export function SnippetEditor({ snippet, deleting, onSaved, onDelete, onError }:
     if (savedTimeout.current !== null) window.clearTimeout(savedTimeout.current)
   }, [])
 
+  useLayoutEffect(() => {
+    if (!textarea.current) return
+    textarea.current.style.height = 'auto'
+    textarea.current.style.height = `${textarea.current.scrollHeight}px`
+  }, [content])
+
   const changeTitle = (value: string) => {
     revision.current += 1
     setDirty(true)
@@ -125,6 +132,7 @@ export function SnippetEditor({ snippet, deleting, onSaved, onDelete, onError }:
         </button>
       </div>
       <textarea
+        ref={textarea}
         value={content}
         onInput={(event) => changeContent(event.currentTarget.value)}
         onBlur={queueSave}

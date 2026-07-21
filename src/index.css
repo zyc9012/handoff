@@ -432,7 +432,7 @@ body { background: var(--canvas); }
 .snippet-editor { border: 1px solid var(--rule); background: var(--surface-strong); }
 .snippet-toolbar { min-height: 48px; padding: 6px 8px 6px 15px; border-bottom: 1px solid var(--rule); display: flex; align-items: center; gap: 8px; }
 .snippet-toolbar input { min-width: 0; flex: 1; border: 0; color: var(--ink); background: transparent; font-size: 13px; font-weight: 650; }
-.snippet-editor textarea { width: 100%; min-height: 190px; padding: 18px; resize: vertical; border: 0; outline: 0; color: var(--ink); background: #fcfcfa; font-family: var(--sans); font-size: 13px; line-height: 1.65; }
+.snippet-editor textarea { width: 100%; min-height: 190px; padding: 18px; overflow: hidden; resize: none; border: 0; outline: 0; color: var(--ink); background: #fcfcfa; font-family: var(--sans); font-size: 13px; line-height: 1.65; }
 .snippet-meta { height: 30px; padding: 0 12px; border-top: 1px solid var(--rule); display: flex; align-items: center; justify-content: flex-end; gap: 18px; color: var(--faint); font-family: var(--sans); font-size: 11px; }
 .empty-action { min-height: 190px; border: 1px dashed var(--rule-strong); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; color: var(--muted); background: transparent; cursor: pointer; }
 .empty-action strong { color: var(--ink); font-size: 13px; }
