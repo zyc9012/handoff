@@ -21,11 +21,10 @@ Passwords use PBKDF2-SHA-256 with per-password salts. Sessions are opaque, hashe
 npm install
 npm run types
 npm run db:migrate:local
-npm run build
-npx wrangler dev
+npm run dev
 ```
 
-Open the URL Wrangler prints, normally `http://localhost:8787`. The first visit prompts you to create the initial administrator. Local D1, R2, and Durable Object state lives under `.wrangler/`.
+Open the Vite URL, normally `http://localhost:5173`. Frontend changes update through hot module replacement, while Worker changes reload in Wrangler on `http://localhost:8787`. The first visit prompts you to create the initial administrator. Local D1, R2, and Durable Object state lives under `.wrangler/`.
 
 Run all build and deployment checks with:
 
