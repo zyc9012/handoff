@@ -1,21 +1,26 @@
 export { DropRoom } from "./drop-room";
+import { Hono } from "hono";
 import { normalizeRoomCode } from "../src/utils";
-import { clearExpired, handleApi } from "./api";
+import { api, clearExpired } from "./api";
 import { networkAddress } from "./network-address";
 
+export const app = new Hono<{ Bindings: Env }>();
+
+app.route("/api", api);
+
+app.all("/drop/ws", (context) => {
+  const code = normalizeRoomCode(context.req.query("room") ?? "");
+  const address = networkAddress(
+    context.req.header("CF-Connecting-IP") ?? "local",
+  );
+  const room = code ? `code:${code}` : `network:${address}`;
+  return context.env.DROP_ROOMS.getByName(room).fetch(context.req.raw);
+});
+
+app.all("*", (context) => context.env.ASSETS.fetch(context.req.raw));
+
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
-    if (url.pathname === "/api/health") return Response.json({ status: "ok" });
-    if (url.pathname === "/drop/ws") {
-      const code = normalizeRoomCode(url.searchParams.get("room") ?? "");
-      const address = networkAddress(request.headers.get("CF-Connecting-IP") ?? "local");
-      const room = code ? `code:${code}` : `network:${address}`;
-      return env.DROP_ROOMS.getByName(room).fetch(request);
-    }
-    if (url.pathname.startsWith("/api/")) return handleApi(request, env);
-    return env.ASSETS.fetch(request);
-  },
+  fetch: app.fetch,
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
     await clearExpired(env);
   },

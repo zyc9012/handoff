@@ -1,6 +1,6 @@
 const encoder = new TextEncoder();
 const PASSWORD_ITERATIONS = 100_000;
-const SESSION_SECONDS = 60 * 60 * 24 * 14;
+export const SESSION_SECONDS = 60 * 60 * 24 * 14;
 
 export type Role = "admin" | "user";
 
@@ -74,20 +74,10 @@ export async function verifyPassword(
   return difference === 0;
 }
 
-function readCookie(request: Request, name: string): string | null {
-  const cookies = request.headers.get("Cookie")?.split(";") ?? [];
-  for (const cookie of cookies) {
-    const [key, ...parts] = cookie.trim().split("=");
-    if (key === name) return decodeURIComponent(parts.join("="));
-  }
-  return null;
-}
-
 export async function currentUser(
-  request: Request,
+  token: string | undefined,
   db: D1Database,
 ): Promise<CurrentUser | null> {
-  const token = readCookie(request, "handoff_session");
   if (!token) return null;
 
   const tokenHash = await digest(token);
@@ -119,14 +109,13 @@ export async function createSession(userId: string, db: D1Database): Promise<str
     )
     .bind(tokenHash, userId, `+${SESSION_SECONDS} seconds`)
     .run();
-  return (
-    `handoff_session=${encodeURIComponent(token)}; HttpOnly; Secure; ` +
-    `SameSite=Strict; Path=/; Max-Age=${SESSION_SECONDS}`
-  );
+  return token;
 }
 
-export async function deleteSession(request: Request, db: D1Database): Promise<void> {
-  const token = readCookie(request, "handoff_session");
+export async function deleteSession(
+  token: string | undefined,
+  db: D1Database,
+): Promise<void> {
   if (token) {
     await db
       .prepare("DELETE FROM sessions WHERE token_hash = ?")
@@ -134,6 +123,3 @@ export async function deleteSession(request: Request, db: D1Database): Promise<v
       .run();
   }
 }
-
-export const expiredSessionCookie =
-  "handoff_session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0";
