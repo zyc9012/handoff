@@ -50,6 +50,49 @@ const rtcConfig: RTCConfiguration = {
   iceServers: [{ urls: 'stun:stun.cloudflare.com:3478' }],
 }
 
+const DATA_CHUNK_BYTES = 64 * 1024
+const BUFFER_HIGH_WATER_BYTES = 1024 * 1024
+const BUFFER_LOW_WATER_BYTES = 256 * 1024
+
+function chunkSize(connection: RTCPeerConnection): number {
+  const negotiatedMaximum = connection.sctp?.maxMessageSize
+  if (!negotiatedMaximum || !Number.isFinite(negotiatedMaximum)) return DATA_CHUNK_BYTES
+  return Math.max(1, Math.min(DATA_CHUNK_BYTES, negotiatedMaximum))
+}
+
+function waitForWritableChannel(channel: RTCDataChannel): Promise<void> {
+  if (channel.readyState !== 'open') {
+    return Promise.reject(new Error('Connection closed during transfer'))
+  }
+  if (channel.bufferedAmount <= BUFFER_HIGH_WATER_BYTES) return Promise.resolve()
+
+  channel.bufferedAmountLowThreshold = BUFFER_LOW_WATER_BYTES
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      channel.removeEventListener('bufferedamountlow', handleLowBuffer)
+      channel.removeEventListener('close', handleClose)
+      channel.removeEventListener('error', handleError)
+    }
+    const handleLowBuffer = () => {
+      cleanup()
+      resolve()
+    }
+    const handleClose = () => {
+      cleanup()
+      reject(new Error('Connection closed during transfer'))
+    }
+    const handleError = () => {
+      cleanup()
+      reject(new Error('Connection failed during transfer'))
+    }
+
+    channel.addEventListener('bufferedamountlow', handleLowBuffer)
+    channel.addEventListener('close', handleClose)
+    channel.addEventListener('error', handleError)
+    if (channel.bufferedAmount <= BUFFER_LOW_WATER_BYTES) handleLowBuffer()
+  })
+}
+
 function randomName(): string {
   const first =
     ['Amber', 'Blue', 'Calm', 'Silver', 'Swift'][
@@ -82,6 +125,26 @@ export function useNearbyTransfer() {
   const bindChannel = (state: PeerState, channel: RTCDataChannel) => {
     state.channel = channel
     channel.binaryType = 'arraybuffer'
+    const failActiveTransfer = (message: string) => {
+      if (state.file) {
+        state.file = undefined
+        setOutgoing((value) =>
+          value && value.status !== 'complete'
+            ? { ...value, status: 'error', error: message }
+            : value,
+        )
+      }
+      if (incomingPeerRef.current === state.peer.id) {
+        incomingPeerRef.current = null
+        setIncoming((value) =>
+          value && value.status !== 'complete'
+            ? { ...value, status: 'error', error: message }
+            : value,
+        )
+      }
+    }
+    channel.onerror = () => failActiveTransfer('Connection failed during transfer')
+    channel.onclose = () => failActiveTransfer('Connection closed during transfer')
     channel.onmessage = (event) => {
       if (typeof event.data === 'string') {
         const message = JSON.parse(event.data) as {
@@ -107,11 +170,13 @@ export function useNearbyTransfer() {
           setOutgoing((value) => (value ? { ...value, status: 'sending' } : value))
           void sendBytes(state)
         } else if (message.type === 'decline') {
+          state.file = undefined
           setOutgoing((value) =>
             value ? { ...value, status: 'error', error: 'Transfer declined' } : value,
           )
         } else if (message.type === 'complete') {
           const blob = new Blob(state.chunks)
+          incomingPeerRef.current = null
           setIncoming((value) =>
             value
               ? {
@@ -128,15 +193,11 @@ export function useNearbyTransfer() {
 
       state.chunks.push(event.data as ArrayBuffer)
       state.received += (event.data as ArrayBuffer).byteLength
-      setIncoming((value) =>
-        value
-          ? {
-              ...value,
-              status: 'receiving',
-              progress: Math.min(100, Math.round((state.received / value.size) * 100)),
-            }
-          : value,
-      )
+      setIncoming((value) => {
+        if (!value) return value
+        const progress = Math.min(100, Math.round((state.received / value.size) * 100))
+        return progress > value.progress ? { ...value, status: 'receiving', progress } : value
+      })
     }
   }
 
@@ -170,27 +231,33 @@ export function useNearbyTransfer() {
 
     try {
       const reader = file.stream().getReader()
+      const maximumChunkSize = chunkSize(state.connection)
       let sent = 0
 
       while (true) {
         const part = await reader.read()
         if (part.done) break
 
-        while (channel.bufferedAmount > 4 * 1024 * 1024) {
-          await new Promise((resolve) => window.setTimeout(resolve, 40))
+        for (let offset = 0; offset < part.value.byteLength; offset += maximumChunkSize) {
+          await waitForWritableChannel(channel)
+          const chunk = part.value.subarray(offset, offset + maximumChunkSize)
+          channel.send(chunk as Uint8Array<ArrayBuffer>)
+          sent += chunk.byteLength
         }
-        channel.send(part.value as Uint8Array<ArrayBuffer>)
-        sent += part.value.byteLength
+        const progress = Math.round((sent / file.size) * 100)
         setOutgoing((value) =>
-          value ? { ...value, progress: Math.round((sent / file.size) * 100) } : value,
+          value && progress > value.progress ? { ...value, progress } : value,
         )
       }
 
+      await waitForWritableChannel(channel)
       channel.send(JSON.stringify({ type: 'complete' }))
+      state.file = undefined
       setOutgoing((value) =>
         value ? { ...value, progress: 100, status: 'complete' } : value,
       )
     } catch (error) {
+      state.file = undefined
       setOutgoing((value) =>
         value
           ? {
@@ -308,6 +375,7 @@ export function useNearbyTransfer() {
       ? statesRef.current.get(incomingPeerRef.current)
       : undefined
     state?.channel?.send(JSON.stringify({ type: 'decline' }))
+    incomingPeerRef.current = null
     setIncoming(null)
   }
 
