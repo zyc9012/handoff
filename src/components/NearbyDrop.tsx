@@ -25,7 +25,13 @@ function formatBytes(bytes: number): string {
 export function NearbyDrop({ onBack }: NearbyDropProps) {
   const nearby = useNearbyTransfer()
   const [target, setTarget] = useState<NearbyPeer | null>(null)
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
+
+  const sendFile = (peer: NearbyPeer, file: File) => {
+    setTarget(peer)
+    void nearby.sendFile(peer, file)
+  }
 
   return (
     <main className="nearby-page">
@@ -45,26 +51,63 @@ export function NearbyDrop({ onBack }: NearbyDropProps) {
           type="file"
           onChange={(event) => {
             const file = event.currentTarget.files?.[0]
-            if (file && target) void nearby.sendFile(target, file)
+            if (file && target) sendFile(target, file)
+            event.currentTarget.value = ''
           }}
         />
 
-        <div className="device-grid">
+        <div
+          className="device-grid"
+          onDragOver={(event) => {
+            if (event.dataTransfer?.types.includes('Files')) event.preventDefault()
+          }}
+          onDrop={(event) => {
+            if (!event.dataTransfer?.types.includes('Files')) return
+            event.preventDefault()
+            setDropTargetId(null)
+          }}
+        >
           {nearby.peers.map((peer) => (
             <button
               className="peer-card"
+              data-drop-target={dropTargetId === peer.id}
               type="button"
               key={peer.id}
               onClick={() => {
                 setTarget(peer)
                 fileInput.current?.click()
               }}
+              onDragEnter={(event) => {
+                if (!event.dataTransfer?.types.includes('Files')) return
+                event.preventDefault()
+                setDropTargetId(peer.id)
+              }}
+              onDragOver={(event) => {
+                const transfer = event.dataTransfer
+                if (!transfer?.types.includes('Files')) return
+                event.preventDefault()
+                transfer.dropEffect = 'copy'
+              }}
+              onDragLeave={(event) => {
+                const nextTarget = event.relatedTarget
+                if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+                  setDropTargetId(null)
+                }
+              }}
+              onDrop={(event) => {
+                const transfer = event.dataTransfer
+                if (!transfer) return
+                event.preventDefault()
+                setDropTargetId(null)
+                const file = transfer.files[0]
+                if (file) sendFile(peer, file)
+              }}
             >
               <span>
                 <HardDrive size={23} />
               </span>
               <strong>{peer.name}</strong>
-              <small>Tap to choose a file</small>
+              <small>{dropTargetId === peer.id ? 'Drop file to send' : 'Tap or drop a file'}</small>
               <Send size={17} />
             </button>
           ))}

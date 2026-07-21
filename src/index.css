@@ -489,6 +489,8 @@ body { background: var(--canvas); }
 .device-grid::-webkit-scrollbar-thumb:hover { background: #67d5bd; }
 .peer-card { min-height: 168px; padding: 20px; border: 1px solid rgba(255,255,255,.16); display: flex; flex-direction: column; align-items: flex-start; color: white; background: rgba(255,255,255,.045); text-align: left; cursor: pointer; }
 .peer-card:hover { border-color: #67d5bd; background: rgba(103,213,189,.09); }
+.peer-card[data-drop-target='true'] { border-color: #67d5bd; background: rgba(103,213,189,.16); box-shadow: inset 0 0 0 1px #67d5bd; }
+.peer-card[data-drop-target='true'] > span { color: white; border-color: #67d5bd; background: rgba(103,213,189,.14); }
 .peer-card > span { width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid #277b6b; color: #67d5bd; }
 .peer-card strong { margin-top: 20px; font-size: 12px; }
 .peer-card small { margin-top: 6px; color: #7faaa1; font-size: 11px; }
